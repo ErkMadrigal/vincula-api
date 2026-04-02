@@ -1,0 +1,14 @@
+### Login Ellioth
+POST http://localhost/vincula-api/public/api/auth/login
+Content-Type: application/json
+
+{
+    "curp": "MAFE990706HMCDLR05",
+    "password": "MAFE9907"
+}
+
+
+### Mis hijos
+GET http://localhost/vincula-api/public/api/alumno/mis-hijos
+Content-Type: application/json
+Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6IjEiLCJlc2N1ZWxhX2lkIjoiMSIsInJvbCI6InBhZHJlIiwibm9tYnJlIjoiRWxsaW90aCBNYXJ0XHUwMGVkbmV6IiwiaWF0IjoxNzc1MDg5MDQ1LCJleHAiOjE3NzUxNzU0NDV9.DbGvq5_hOFJqI_B8jmCRZ7b5NnBcRRUDQBsRuSpkE64
