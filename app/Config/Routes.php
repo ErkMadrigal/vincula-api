@@ -2,6 +2,16 @@
 
 use CodeIgniter\Router\RouteCollection;
 
+// Preflight CORS
+$routes->options('(:any)', function() {
+    header('Access-Control-Allow-Origin: http://localhost:5173');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    header('Access-Control-Allow-Credentials: true');
+    header('HTTP/1.1 200 OK');
+    exit();
+});
+
 /**
  * @var RouteCollection $routes
  */
@@ -64,6 +74,11 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
             $routes->post('pagos/carga',                'PagoController::carga');
             $routes->get('pagos/estado',                'PagoController::estado');
             $routes->post('pagos/toggle/(:segment)',    'PagoController::toggle/$1');
+
+            $routes->post('usuario/nuevo',  'CargaController::nuevoUsuario');
+            $routes->get('usuarios',        'CargaController::listarUsuarios');
+            $routes->put('usuario/editar/(:num)',        'CargaController::editarUsuario/$1');
+            $routes->put('usuario/reset-password/(:num)','CargaController::resetPassword/$1');
 
         });
 

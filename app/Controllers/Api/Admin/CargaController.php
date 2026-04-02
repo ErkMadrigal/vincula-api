@@ -8,6 +8,12 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 class CargaController extends ResourceController
 {
     protected $format = 'json';
+    protected $db;
+
+    public function __construct()
+    {
+        $this->db = \Config\Database::connect();
+    }
 
     // ─── POST /api/admin/carga/alumnos ────────────────────────────────────────
     public function alumnos()
@@ -268,5 +274,176 @@ class CargaController extends ResourceController
             mt_rand(0, 0x3fff) | 0x8000,
             mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
         );
+    }
+
+    // POST /api/admin/usuario/nuevo
+    public function nuevoUsuario()
+    {
+        $usuario = $this->request->usuario;
+
+        if (!in_array($usuario->rol, ['super_admin', 'admin', 'director'])) {
+            return $this->fail('No tienes permiso.', 403);
+        }
+
+        $json  = $this->request->getJSON();
+        $rules = [
+            'curp'   => 'required|min_length[18]|max_length[18]',
+            'nombre' => 'required',
+            'rol'    => 'required|in_list[admin,director,maestro]',
+        ];
+
+        if (!$this->validate($rules)) {
+            return $this->failValidationErrors($this->validator->getErrors());
+        }
+
+        $curp = strtoupper($json->curp);
+
+        $existe = $this->db->table('usuarios')
+            ->where('curp', $curp)
+            ->where('escuela_id', $usuario->escuela_id)
+            ->countAllResults();
+
+        if ($existe) {
+            return $this->fail('Ya existe un usuario con esa CURP.', 409);
+        }
+
+        $password = password_hash(substr($curp, 0, 8), PASSWORD_DEFAULT);
+
+        $this->db->table('usuarios')->insert([
+            'escuela_id' => $usuario->escuela_id,
+            'curp'       => $curp,
+            'nombre'     => $json->nombre,
+            'password'   => $password,
+            'rol'        => $json->rol,
+            'activo'     => 1,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        Auditoria::log('crear', 'usuarios',
+            "Nuevo usuario: {$json->nombre} ({$curp}) rol: {$json->rol}", $usuario);
+
+        return $this->respond([
+            'status'  => 'ok',
+            'mensaje' => 'Usuario creado correctamente.',
+            'usuario' => [
+                'curp'   => $curp,
+                'nombre' => $json->nombre,
+                'rol'    => $json->rol,
+            ]
+        ]);
+    }
+
+    // GET /api/admin/usuarios
+    public function listarUsuarios()
+    {
+        $usuario = $this->request->usuario;
+
+        if (!in_array($usuario->rol, ['super_admin', 'admin', 'director'])) {
+            return $this->fail('No tienes permiso.', 403);
+        }
+
+        $usuarios = $this->db->table('usuarios')
+            ->select('id, curp, nombre, rol, activo, created_at')
+            ->where('escuela_id', $usuario->escuela_id)
+            ->whereIn('rol', ['admin', 'director', 'maestro'])
+            ->orderBy('rol', 'ASC')
+            ->orderBy('nombre', 'ASC')
+            ->get()->getResultArray();
+
+        return $this->respond([
+            'status'   => 'ok',
+            'usuarios' => $usuarios,
+        ]);
+    }
+
+    // PUT /api/admin/usuario/editar/:id
+    public function editarUsuario(int $id = 0)
+    {
+        $usuario = $this->request->usuario;
+
+        if (!in_array($usuario->rol, ['super_admin', 'admin', 'director'])) {
+            return $this->fail('No tienes permiso.', 403);
+        }
+
+        $json = $this->request->getJSON();
+
+        // Verificar que el usuario pertenezca a la escuela
+        $target = $this->db->table('usuarios')
+            ->where('id', $id)
+            ->where('escuela_id', $usuario->escuela_id)
+            ->get()->getRowArray();
+
+        if (!$target) {
+            return $this->failNotFound('Usuario no encontrado.');
+        }
+
+        $datos = [];
+
+        if (!empty($json->nombre)) {
+            $datos['nombre'] = $json->nombre;
+        }
+
+        if (!empty($json->rol)) {
+            if (!in_array($json->rol, ['admin', 'director', 'maestro'])) {
+                return $this->fail('Rol inválido.', 400);
+            }
+            $datos['rol'] = $json->rol;
+        }
+
+        if (isset($json->activo)) {
+            $datos['activo'] = (int)$json->activo;
+        }
+
+        if (empty($datos)) {
+            return $this->fail('No hay datos para actualizar.', 400);
+        }
+
+        $datos['updated_at'] = date('Y-m-d H:i:s');
+
+        $this->db->table('usuarios')->update($datos, ['id' => $id]);
+
+        Auditoria::log('editar', 'usuarios',
+            "Editó usuario ID: {$id} — {$target['nombre']}", $usuario);
+
+        return $this->respond([
+            'status'  => 'ok',
+            'mensaje' => 'Usuario actualizado correctamente.',
+        ]);
+    }
+
+    // PUT /api/admin/usuario/reset-password/:id
+    public function resetPassword(int $id = 0)
+    {
+        $usuario = $this->request->usuario;
+
+        if (!in_array($usuario->rol, ['super_admin', 'admin', 'director'])) {
+            return $this->fail('No tienes permiso.', 403);
+        }
+
+        $target = $this->db->table('usuarios')
+            ->where('id', $id)
+            ->where('escuela_id', $usuario->escuela_id)
+            ->get()->getRowArray();
+
+        if (!$target) {
+            return $this->failNotFound('Usuario no encontrado.');
+        }
+
+        // Reset a los primeros 8 dígitos de su CURP
+        $nuevaPassword = password_hash(substr($target['curp'], 0, 8), PASSWORD_DEFAULT);
+
+        $this->db->table('usuarios')->update(
+            ['password' => $nuevaPassword, 'updated_at' => date('Y-m-d H:i:s')],
+            ['id' => $id]
+        );
+
+        Auditoria::log('editar', 'usuarios',
+            "Reset de contraseña para: {$target['nombre']} (ID: {$id})", $usuario);
+
+        return $this->respond([
+            'status'  => 'ok',
+            'mensaje' => "Contraseña restablecida. Nueva contraseña: " . substr($target['curp'], 0, 8),
+            'password'=> substr($target['curp'], 0, 8),
+        ]);
     }
 }
