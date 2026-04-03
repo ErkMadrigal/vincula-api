@@ -6,6 +6,12 @@ use CodeIgniter\RESTful\ResourceController;
 class CalificacionController extends ResourceController
 {
     protected $format = 'json';
+    protected $db;
+
+    public function __construct()
+    {
+        $this->db = \Config\Database::connect();
+    }
 
     // GET /api/calificacion/hijo/:alumno_uuid
     public function porHijo(string $alumno_uuid = '')

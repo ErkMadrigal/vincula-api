@@ -8,6 +8,12 @@ use CodeIgniter\RESTful\ResourceController;
 class AvisoController extends ResourceController
 {
     protected $format = 'json';
+    protected $db;
+
+    public function __construct()
+    {
+        $this->db = \Config\Database::connect();
+    }
 
     // POST /api/aviso/publicar
     public function publicar()

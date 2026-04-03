@@ -17,12 +17,15 @@ $routes->options('(:any)', function() {
  */
 $routes->get('/', 'Home::index');
 
+
+
 // API Vincúla
 $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes) {
-
+    
     // Rutas públicas
     $routes->post('auth/login',            'AuthController::login');
     $routes->post('auth/cambiar-password', 'AuthController::cambiarPassword');
+    $routes->get('qr/alumno/(:segment)',         'QrController::generar/$1');
 
     // Rutas protegidas con JWT
     $routes->group('', ['filter' => 'jwt'], function ($routes) {
@@ -38,6 +41,7 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
         $routes->get('asistencia/rango/(:segment)',    'AsistenciaController::rango/$1');
         $routes->get('asistencia/mes/(:segment)',      'AsistenciaController::mes/$1');
         $routes->get('asistencia/semana/(:segment)',   'AsistenciaController::semana/$1');
+        $routes->get('asistencia/escuela/rango', 'AsistenciaController::escuelaRango');
 
         // Incidencias
         $routes->post('incidencia/registrar',           'IncidenciaController::registrar');
@@ -57,7 +61,6 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
 
 
         // QR
-        $routes->get('qr/alumno/(:segment)',         'QrController::generar/$1');
         $routes->get('qr/grupo/(:segment)/(:segment)','QrController::porGrupo/$1/$2');
         $routes->get('qr/credencial/(:segment)',     'QrController::credencial/$1');
 
@@ -80,7 +83,25 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
             $routes->put('usuario/editar/(:num)',        'CargaController::editarUsuario/$1');
             $routes->put('usuario/reset-password/(:num)','CargaController::resetPassword/$1');
 
+            $routes->get('alumnos',                  'CargaController::listarAlumnos');
+            $routes->put('alumno/editar/(:segment)', 'CargaController::editarAlumno/$1');
+            $routes->get('calificaciones/alumno/(:segment)', 'CargaController::calificacionesPorAlumno/$1');
+
+
         });
+
+        $routes->get('superadmin/dashboard', 'SuperAdminController::dashboard');
+        $routes->get('superadmin/escuelas',  'SuperAdminController::escuelas');
+
+        $routes->post('superadmin/escuelas/nueva',       'SuperAdminController::nuevaEscuela');
+        $routes->put('superadmin/escuelas/toggle/(:num)', 'SuperAdminController::toggleEscuela/$1');
+        $routes->post('superadmin/usuario/nuevo', 'SuperAdminController::nuevoUsuario');
+
+        $routes->get('superadmin/usuarios',                        'SuperAdminController::usuarios');
+        $routes->put('superadmin/usuario/editar/(:num)',           'SuperAdminController::editarUsuario/$1');
+        $routes->put('superadmin/usuario/reset-password/(:num)',   'SuperAdminController::resetPassword/$1');
+
+        
 
     });
 });

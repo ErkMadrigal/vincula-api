@@ -8,7 +8,14 @@ use CodeIgniter\RESTful\ResourceController;
 
 class AsistenciaController extends ResourceController
 {
+
     protected $format = 'json';
+    protected $db;
+
+    public function __construct()
+    {
+        $this->db = \Config\Database::connect();
+    }
 
     // POST /api/asistencia/registrar
     // Lo llama el maestro al escanear el QR
@@ -126,11 +133,11 @@ class AsistenciaController extends ResourceController
         $usuario = $this->request->usuario;
 
         $asistencias = $this->db->table('asistencias a')
-            ->select('al.nombre, al.grado, al.grupo, a.tipo, a.hora')
+            ->select('a.id, al.nombre as alumno, al.grado, al.grupo, a.tipo, a.hora')
             ->join('alumnos al', 'al.id = a.alumno_id')
             ->where('a.escuela_id', $usuario->escuela_id)
             ->where('a.fecha', date('Y-m-d'))
-            ->orderBy('a.hora', 'ASC')
+            ->orderBy('a.hora', 'DESC')
             ->get()->getResultArray();
 
         return $this->respond([
@@ -287,4 +294,37 @@ class AsistenciaController extends ResourceController
             ->orderBy('hora',  'ASC')
             ->get()->getResultArray();
     }
+
+
+    // GET /api/asistencia/escuela/rango?desde=&hasta=
+    public function escuelaRango()
+    {
+        $usuario = $this->request->usuario;
+        $desde   = $this->request->getGet('desde');
+        $hasta   = $this->request->getGet('hasta');
+
+        if (!$desde || !$hasta) {
+            return $this->fail('Debes enviar desde y hasta.', 400);
+        }
+
+        $registros = $this->db->table('asistencias a')
+            ->select('a.id, al.nombre as alumno, al.grado, al.grupo, a.tipo, a.fecha, a.hora, u.nombre as maestro')
+            ->join('alumnos al',  'al.id = a.alumno_id')
+            ->join('usuarios u',  'u.id  = a.maestro_id')
+            ->where('a.escuela_id', $usuario->escuela_id)
+            ->where('a.fecha >=', $desde)
+            ->where('a.fecha <=', $hasta)
+            ->orderBy('a.fecha', 'DESC')
+            ->orderBy('a.hora',  'DESC')
+            ->get()->getResultArray();
+
+        return $this->respond([
+            'status'    => 'ok',
+            'desde'     => $desde,
+            'hasta'     => $hasta,
+            'total'     => count($registros),
+            'registros' => $registros,
+        ]);
+    }
+
 }

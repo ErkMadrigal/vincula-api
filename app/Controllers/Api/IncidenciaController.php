@@ -9,6 +9,12 @@ use CodeIgniter\RESTful\ResourceController;
 class IncidenciaController extends ResourceController
 {
     protected $format = 'json';
+    protected $db;
+
+    public function __construct()
+    {
+        $this->db = \Config\Database::connect();
+    }
 
     // POST /api/incidencia/registrar
     // El maestro registra la incidencia

@@ -9,6 +9,12 @@ use CodeIgniter\RESTful\ResourceController;
 class AlumnoController extends ResourceController
 {
     protected $format = 'json';
+    protected $db;
+
+    public function __construct()
+    {
+        $this->db = \Config\Database::connect();
+    }
 
     // GET /api/alumno/mis-hijos
     public function misHijos()

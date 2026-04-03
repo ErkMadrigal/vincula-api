@@ -446,4 +446,79 @@ class CargaController extends ResourceController
             'password'=> substr($target['curp'], 0, 8),
         ]);
     }
+
+    // GET /api/admin/alumnos
+    public function listarAlumnos()
+    {
+        $usuario = $this->request->usuario;
+
+        $alumnos = $this->db->table('alumnos')
+            ->where('escuela_id', $usuario->escuela_id)
+            ->where('activo', 1)
+            ->orderBy('nombre', 'ASC')
+            ->get()->getResultArray();
+
+        return $this->respond(['status' => 'ok', 'alumnos' => $alumnos]);
+    }
+
+    // PUT /api/admin/alumno/editar/:uuid
+    public function editarAlumno(string $uuid = '')
+    {
+        $usuario = $this->request->usuario;
+        $json    = $this->request->getJSON();
+
+        $alumno = $this->db->table('alumnos')
+            ->where('uuid', $uuid)
+            ->where('escuela_id', $usuario->escuela_id)
+            ->get()->getRowArray();
+
+        if (!$alumno) {
+            return $this->failNotFound('Alumno no encontrado.');
+        }
+
+        $this->db->table('alumnos')->update([
+            'nombre'     => $json->nombre ?? $alumno['nombre'],
+            'grado'      => $json->grado  ?? $alumno['grado'],
+            'grupo'      => $json->grupo  ?? $alumno['grupo'],
+            'updated_at' => date('Y-m-d H:i:s'),
+        ], ['id' => $alumno['id']]);
+
+        Auditoria::log('editar', 'alumnos', "Editó alumno: {$alumno['nombre']}", $usuario);
+
+        return $this->respond(['status' => 'ok', 'mensaje' => 'Alumno actualizado correctamente.']);
+    }
+
+    // GET /api/admin/calificaciones/alumno/:uuid
+    public function calificacionesPorAlumno(string $uuid = '')
+    {
+        $usuario = $this->request->usuario;
+
+        $alumno = $this->db->table('alumnos')
+            ->where('uuid', $uuid)
+            ->where('escuela_id', $usuario->escuela_id)
+            ->get()->getRowArray();
+
+        if (!$alumno) {
+            return $this->failNotFound('Alumno no encontrado.');
+        }
+
+        $calificaciones = $this->db->table('calificaciones c')
+            ->select('c.id, c.bimestre, c.ciclo, c.promedio, c.created_at')
+            ->where('c.alumno_id', $alumno['id'])
+            ->orderBy('c.ciclo', 'DESC')
+            ->orderBy('c.bimestre', 'ASC')
+            ->get()->getResultArray();
+
+        foreach ($calificaciones as &$cal) {
+            $cal['materias'] = $this->db->table('calificacion_materias')
+                ->where('calificacion_id', $cal['id'])
+                ->orderBy('materia', 'ASC')
+                ->get()->getResultArray();
+        }
+
+        return $this->respond([
+            'status'         => 'ok',
+            'calificaciones' => $calificaciones,
+        ]);
+    }
 }
