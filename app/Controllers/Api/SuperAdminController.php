@@ -76,19 +76,18 @@ class SuperAdminController extends ResourceController
 
         $escuelas = $this->db->table('escuelas e')
             ->select('e.id, e.nombre, e.subdominio, e.plan, e.activa, e.created_at,
-                      COUNT(DISTINCT a.id) as total_alumnos,
-                      SUM(a.pagado) as alumnos_pagados,
-                      COUNT(DISTINCT u.id) as total_usuarios')
-            ->join('alumnos a',  'a.escuela_id = e.id', 'left')
-            ->join('usuarios u', 'u.escuela_id = e.id AND u.rol != "padre"', 'left')
+                    COUNT(DISTINCT a.id) as total_alumnos,
+                    SUM(DISTINCT CASE WHEN a.pagado = 1 THEN 1 ELSE 0 END) as alumnos_pagados')
+            ->join('alumnos a', 'a.escuela_id = e.id AND a.activo = 1', 'left')
             ->groupBy('e.id')
             ->orderBy('e.created_at', 'DESC')
             ->get()->getResultArray();
 
-        // Calcular ingreso por escuela
         foreach ($escuelas as &$e) {
-            $e['ingreso_mes']  = $e['alumnos_pagados'] * 15;
-            $e['ingreso_anio'] = $e['ingreso_mes'] * 12;
+            $e['alumnos_pagados'] = (int)$e['alumnos_pagados'];
+            $e['total_alumnos']   = (int)$e['total_alumnos'];
+            $e['ingreso_mes']     = $e['alumnos_pagados'] * 15;
+            $e['ingreso_anio']    = $e['ingreso_mes'] * 12;
         }
 
         return $this->respond([

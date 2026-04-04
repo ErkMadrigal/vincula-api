@@ -8,6 +8,12 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 class PagoController extends ResourceController
 {
     protected $format = 'json';
+    protected $db;
+
+    public function __construct()
+    {
+        $this->db = \Config\Database::connect();
+    }
 
     // POST /api/admin/pagos/carga
     public function carga()

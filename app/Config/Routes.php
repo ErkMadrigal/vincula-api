@@ -30,6 +30,10 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
     // Rutas protegidas con JWT
     $routes->group('', ['filter' => 'jwt'], function ($routes) {
 
+        $routes->get('auth/perfil', 'AuthController::perfil');
+        $routes->post('auth/foto', 'AuthController::subirFoto');
+
+
         // Alumnos
         $routes->get('alumno/mis-hijos',               'AlumnoController::misHijos');
         $routes->post('alumno/vincular',               'AlumnoController::vincular');
@@ -87,6 +91,9 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
             $routes->put('alumno/editar/(:segment)', 'CargaController::editarAlumno/$1');
             $routes->get('calificaciones/alumno/(:segment)', 'CargaController::calificacionesPorAlumno/$1');
 
+            $routes->get('grados-grupos',              'GradoGrupoController::index');
+            $routes->post('grados-grupos/nuevo',       'GradoGrupoController::nuevo');
+            $routes->delete('grados-grupos/(:num)',    'GradoGrupoController::eliminar/$1');
 
         });
 

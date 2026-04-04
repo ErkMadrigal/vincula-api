@@ -21,4 +21,11 @@ class UsuarioModel extends Model
                     ->where('activo', 1)
                     ->first();
     }
+
+    public function findById(int $id): array|null
+    {
+        return $this->where('id', $id)
+                    ->where('activo', 1)
+                    ->first();
+    }
 }
