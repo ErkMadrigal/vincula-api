@@ -3,6 +3,9 @@ namespace App\Controllers\Api\Admin;
 
 use App\Libraries\Auditoria;
 use CodeIgniter\RESTful\ResourceController;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class PagoController extends ResourceController
@@ -16,6 +19,7 @@ class PagoController extends ResourceController
     }
 
     // POST /api/admin/pagos/carga
+    // POST /api/admin/pagos/carga
     public function carga()
     {
         $usuario = $this->request->usuario;
@@ -25,103 +29,128 @@ class PagoController extends ResourceController
         }
 
         $archivo = $this->request->getFile('archivo');
-
         if (!$archivo || !$archivo->isValid()) {
-            return $this->fail('Debes subir un archivo xlsx válido.', 400);
+            return $this->fail('Archivo inválido.', 400);
         }
 
-        if ($archivo->getClientExtension() !== 'xlsx') {
-            return $this->fail('Solo se aceptan archivos .xlsx', 400);
-        }
+        $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($archivo->getTempName());
+        $filas       = $spreadsheet->getActiveSheet()->toArray();
+        array_shift($filas); // quitar encabezado
 
-        try {
-            $reader = IOFactory::createReader('Xlsx');
-            $reader->setReadDataOnly(true);
-            $spreadsheet = $reader->load($archivo->getTempName());
-            $hoja        = $spreadsheet->getActiveSheet()->toArray();
-        } catch (\Exception $e) {
-            return $this->fail('No se pudo leer el archivo: ' . $e->getMessage(), 400);
-        }
+        $activados  = 0;
+        $bloqueados = 0;
+        $errores    = [];
 
-        array_shift($hoja); // quitar encabezado
+        foreach ($filas as $i => $fila) {
+            $uuid   = trim($fila[0] ?? '');
+            $pagado = intval($fila[2] ?? 0); // columna C = pagado
 
-        $activados   = [];
-        $bloqueados  = [];
-        $errores     = [];
-        $omitidos    = [];
+            if (!$uuid) continue;
 
-        foreach ($hoja as $i => $fila) {
-            $fila  = array_map('trim', $fila);
-            $linea = $i + 2;
-
-            [$curp, $nombre, $pagado] = array_pad($fila, 3, null);
-
-            if (empty($curp)) {
-                $errores[] = "Fila {$linea}: CURP vacía.";
-                continue;
-            }
-
-            $curp = strtoupper($curp);
-
-            if (!in_array((string)$pagado, ['0', '1'])) {
-                $errores[] = "Fila {$linea}: El campo pagado debe ser 0 o 1 ({$curp}).";
-                continue;
-            }
-
-            // Buscar alumno en la escuela
             $alumno = $this->db->table('alumnos')
-                ->where('curp', $curp)
+                ->where('uuid', $uuid)
                 ->where('escuela_id', $usuario->escuela_id)
+                ->where('activo', 1)
                 ->get()->getRowArray();
 
             if (!$alumno) {
-                $omitidos[] = "Fila {$linea}: {$curp} no encontrado en esta escuela.";
+                $errores[] = "Fila " . ($i + 2) . ": UUID no encontrado — $uuid";
                 continue;
             }
 
-            // Si ya tiene el mismo estado no hacer nada
-            if ((int)$alumno['pagado'] === (int)$pagado) {
-                $omitidos[] = "{$alumno['nombre']} ya tiene ese estado, se omitió.";
-                continue;
-            }
-
-            // Actualizar estado de pago en alumno
             $this->db->table('alumnos')->update(
-                ['pagado' => (int)$pagado, 'updated_at' => date('Y-m-d H:i:s')],
-                ['id'     => $alumno['id']]
+                ['pagado' => $pagado ? 1 : 0],
+                ['uuid'   => $uuid, 'escuela_id' => $usuario->escuela_id]
             );
 
-            // Actualizar estado del usuario vinculado
-            $this->db->table('usuarios')->update(
-                ['activo'     => (int)$pagado, 'updated_at' => date('Y-m-d H:i:s')],
-                ['curp'       => $curp, 'escuela_id' => $usuario->escuela_id, 'rol' => 'padre']
-            );
-
-            if ((int)$pagado === 1) {
-                $activados[]  = $alumno['nombre'];
-            } else {
-                $bloqueados[] = $alumno['nombre'];
-            }
+            $pagado ? $activados++ : $bloqueados++;
         }
 
-        Auditoria::log(
-            'editar',
-            'pagos',
-            'Control de pagos: ' . count($activados) . ' activados, ' . count($bloqueados) . ' bloqueados.',
-            $usuario
-        );
-
         return $this->respond([
-            'status'             => 'ok',
-            'activados'          => count($activados),
-            'bloqueados'         => count($bloqueados),
-            'omitidos'           => count($omitidos),
-            'errores'            => count($errores),
-            'detalle_activados'  => $activados,
-            'detalle_bloqueados' => $bloqueados,
-            'detalle_omitidos'   => $omitidos,
-            'detalle_errores'    => $errores,
+            'status'    => 'ok',
+            'activados' => $activados,
+            'bloqueados'=> $bloqueados,
+            'errores'   => $errores,
+            'mensaje'   => "Procesados: $activados activados, $bloqueados bloqueados.",
         ]);
+    }
+
+    // GET /api/admin/pagos/exportar?estado=0
+    public function exportar()
+    {
+        $usuario = $this->request->usuario;
+
+        if (!in_array($usuario->rol, ['admin', 'director', 'super_admin'])) {
+            return $this->fail('No tienes permiso.', 403);
+        }
+
+        $estado = $this->request->getGet('estado'); // 0=sin pago, 1=pagados, null=todos
+
+        $query = $this->db->table('alumnos')
+            ->where('escuela_id', $usuario->escuela_id)
+            ->where('activo', 1)
+            ->orderBy('grado', 'ASC')
+            ->orderBy('grupo', 'ASC')
+            ->orderBy('nombre', 'ASC');
+
+        if ($estado !== null && $estado !== '') {
+            $query->where('pagado', intval($estado));
+        }
+
+        $alumnos = $query->get()->getResultArray();
+
+        // Generar xlsx
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet       = $spreadsheet->getActiveSheet();
+
+        // Encabezados
+        $sheet->setCellValue('A1', 'uuid');
+        $sheet->setCellValue('B1', 'nombre');
+        $sheet->setCellValue('C1', 'pagado');
+        $sheet->setCellValue('D1', 'grado');
+        $sheet->setCellValue('E1', 'grupo');
+
+        // Estilo encabezado
+        $sheet->getStyle('A1:E1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:E1')->getFill()
+            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+            ->getStartColor()->setRGB('6B4FBB');
+        $sheet->getStyle('A1:E1')->getFont()->getColor()->setRGB('FFFFFF');
+
+        // Datos
+        foreach ($alumnos as $i => $a) {
+            $row = $i + 2;
+            $sheet->setCellValue("A{$row}", $a['uuid']);
+            $sheet->setCellValue("B{$row}", $a['nombre']);
+            $sheet->setCellValue("C{$row}", (int)$a['pagado']);
+            $sheet->setCellValue("D{$row}", $a['grado']);
+            $sheet->setCellValue("E{$row}", $a['grupo']);
+
+            // Color por estado
+            $color = $a['pagado'] ? 'E1F5EE' : 'FCEBEB';
+            $sheet->getStyle("A{$row}:E{$row}")->getFill()
+                ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                ->getStartColor()->setRGB($color);
+        }
+
+        // Autowidth
+        foreach (range('A', 'E') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $writer   = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        $filename = 'pagos_' . date('Ymd_His') . '.xlsx';
+        $path     = WRITEPATH . 'uploads/' . $filename;
+        $writer->save($path);
+
+        $contenido = file_get_contents($path);
+        unlink($path);
+
+        return $this->response
+            ->setStatusCode(200)
+            ->setContentType('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            ->setHeader('Content-Disposition', "attachment; filename=\"{$filename}\"")
+            ->setBody($contenido);
     }
 
     // GET /api/admin/pagos/estado

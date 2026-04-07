@@ -17,7 +17,6 @@ class IncidenciaController extends ResourceController
     }
 
     // POST /api/incidencia/registrar
-    // El maestro registra la incidencia
     public function registrar()
     {
         $usuario = $this->request->usuario;
@@ -26,7 +25,6 @@ class IncidenciaController extends ResourceController
             return $this->fail('No tienes permiso para registrar incidencias.', 403);
         }
 
-        // Validar campos de texto
         $rules = [
             'alumno_uuid' => 'required',
             'tipo'        => 'required|in_list[pelea,falta,conducta,accidente,otro]',
@@ -38,7 +36,6 @@ class IncidenciaController extends ResourceController
             return $this->failValidationErrors($this->validator->getErrors());
         }
 
-        // Buscar alumno en la misma escuela
         $alumnoModel = new AlumnoModel();
         $alumno = $alumnoModel
             ->where('uuid', $this->request->getPost('alumno_uuid'))
@@ -50,27 +47,21 @@ class IncidenciaController extends ResourceController
             return $this->failNotFound('Alumno no encontrado.');
         }
 
-        // Manejar foto si viene
         $fotoPath = null;
         $foto     = $this->request->getFile('foto');
 
         if ($foto && $foto->isValid() && !$foto->hasMoved()) {
-            $extensionesPermitidas = ['jpg', 'jpeg', 'png'];
-
-            if (!in_array(strtolower($foto->getClientExtension()), $extensionesPermitidas)) {
+            if (!in_array(strtolower($foto->getClientExtension()), ['jpg', 'jpeg', 'png'])) {
                 return $this->fail('Solo se permiten imágenes jpg o png.', 400);
             }
-
             if ($foto->getSize() > 5 * 1024 * 1024) {
                 return $this->fail('La imagen no puede pesar más de 5MB.', 400);
             }
-
             $nombreFoto = $alumno['uuid'] . '_' . time() . '.' . $foto->getClientExtension();
             $foto->move(WRITEPATH . 'uploads/incidencias', $nombreFoto);
             $fotoPath = 'uploads/incidencias/' . $nombreFoto;
         }
 
-        // Insertar incidencia
         $this->db->table('incidencias')->insert([
             'escuela_id'  => $usuario->escuela_id,
             'alumno_id'   => $alumno['id'],
@@ -96,15 +87,16 @@ class IncidenciaController extends ResourceController
         $fcmTokens = array_column($tokens, 'fcm_token');
 
         if (!empty($fcmTokens)) {
-            $gravedad  = $this->request->getPost('gravedad');
-            $tipo      = $this->request->getPost('tipo');
-            $firebase  = new FirebaseNotification();
+            $gravedad = $this->request->getPost('gravedad');
+            $tipo     = $this->request->getPost('tipo');
+
+            $firebase = new FirebaseNotification();
             $firebase->enviar(
                 $fcmTokens,
                 "Vincúla — Incidencia {$gravedad}",
                 "{$alumno['nombre']} tuvo una incidencia de tipo {$tipo}.",
                 [
-                    'incidencia_id' => $incidenciaId,
+                    'incidencia_id' => (string)$incidenciaId,
                     'alumno_uuid'   => $alumno['uuid'],
                     'tipo'          => $tipo,
                     'gravedad'      => $gravedad,
@@ -120,19 +112,17 @@ class IncidenciaController extends ResourceController
         );
 
         return $this->respond([
-            'status'       => 'ok',
-            'mensaje'      => 'Incidencia registrada correctamente.',
-            'incidencia_id'=> $incidenciaId,
+            'status'        => 'ok',
+            'mensaje'       => 'Incidencia registrada correctamente.',
+            'incidencia_id' => $incidenciaId,
         ]);
     }
 
     // GET /api/incidencia/alumno/:alumno_uuid
-    // El papá ve todas las incidencias de su hijo
     public function porAlumno(string $alumno_uuid = '')
     {
         $usuario = $this->request->usuario;
 
-        // Si es padre verificar que sea su hijo
         if ($usuario->rol === 'padre') {
             $alumno = $this->db->table('alumnos a')
                 ->select('a.id, a.nombre')
@@ -145,7 +135,6 @@ class IncidenciaController extends ResourceController
                 return $this->failNotFound('Alumno no encontrado o no vinculado.');
             }
         } else {
-            // Director, admin, maestro — solo verificar que sea de su escuela
             $alumno = $this->db->table('alumnos')
                 ->select('id, nombre')
                 ->where('uuid', $alumno_uuid)
@@ -172,7 +161,6 @@ class IncidenciaController extends ResourceController
     }
 
     // GET /api/incidencia/escuela
-    // El director ve todas las incidencias de su escuela
     public function porEscuela()
     {
         $usuario = $this->request->usuario;
@@ -181,7 +169,7 @@ class IncidenciaController extends ResourceController
             return $this->fail('No tienes permiso.', 403);
         }
 
-        $gravedad = $this->request->getGet('gravedad'); // filtro opcional
+        $gravedad = $this->request->getGet('gravedad');
         $desde    = $this->request->getGet('desde');
         $hasta    = $this->request->getGet('hasta');
 
@@ -189,8 +177,8 @@ class IncidenciaController extends ResourceController
             ->select('i.id, i.tipo, i.gravedad, i.descripcion, i.foto, i.acuse, i.created_at,
                       al.nombre as alumno, al.grado, al.grupo,
                       u.nombre as maestro')
-            ->join('alumnos al',  'al.id = i.alumno_id')
-            ->join('usuarios u',  'u.id  = i.maestro_id')
+            ->join('alumnos al', 'al.id = i.alumno_id')
+            ->join('usuarios u', 'u.id  = i.maestro_id')
             ->where('i.escuela_id', $usuario->escuela_id)
             ->orderBy('i.created_at', 'DESC');
 
@@ -208,7 +196,6 @@ class IncidenciaController extends ResourceController
     }
 
     // POST /api/incidencia/acuse/:id
-    // El papá firma el acuse de enterado
     public function acuse(int $id = 0)
     {
         $usuario = $this->request->usuario;
@@ -217,7 +204,6 @@ class IncidenciaController extends ResourceController
             return $this->fail('Solo los padres pueden firmar el acuse.', 403);
         }
 
-        // Verificar que la incidencia pertenezca a un hijo suyo
         $incidencia = $this->db->table('incidencias i')
             ->select('i.id, i.acuse, i.alumno_id')
             ->join('usuario_alumno ua', 'ua.alumno_id = i.alumno_id')

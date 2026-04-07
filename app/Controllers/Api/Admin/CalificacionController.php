@@ -9,6 +9,12 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 class CalificacionController extends ResourceController
 {
     protected $format = 'json';
+    protected $db;
+
+    public function __construct()
+    {
+        $this->db = \Config\Database::connect();
+    }
 
     // POST /api/admin/calificaciones/carga
     // El xlsx debe tener: curp, materia, calificacion, observaciones

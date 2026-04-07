@@ -36,75 +36,57 @@ class AlumnoController extends ResourceController
         $usuario = $this->request->usuario;
         $json    = $this->request->getJSON();
 
-        $rules = [
-            'curp'     => 'required|min_length[18]|max_length[18]',
-            'password' => 'required|min_length[8]',
-            'relacion' => 'required|in_list[padre,madre,tutor]',
-        ];
-
-        if (!$this->validate($rules)) {
-            return $this->failValidationErrors($this->validator->getErrors());
+        if (empty($json->curp) || empty($json->password)) {
+            return $this->fail('CURP y contraseña son requeridos.', 400);
         }
 
         $curp = strtoupper($json->curp);
 
-        // 1. Buscar al usuario del hijo en la misma escuela
-        $usuarioModel  = new UsuarioModel();
-        $usuarioHijo   = $usuarioModel
+        // Buscar el alumno directamente por CURP
+        $alumno = $this->db->table('alumnos')
             ->where('curp', $curp)
-            ->where('escuela_id', $usuario->escuela_id)
             ->where('activo', 1)
-            ->first();
-
-        if (!$usuarioHijo) {
-            return $this->failNotFound('Alumno no encontrado en esta escuela.');
-        }
-
-        if (!password_verify($json->password, $usuarioHijo['password'])) {
-            return $this->fail('Credenciales incorrectas.', 401);
-        }
-
-        // 2. Buscar al alumno vinculado a ese usuario
-        $alumnoModel = new AlumnoModel();
-        $alumno = $alumnoModel
-            ->where('curp', $curp)
-            ->where('escuela_id', $usuario->escuela_id)
-            ->first();
+            ->get()->getRowArray();
 
         if (!$alumno) {
-            return $this->failNotFound('Alumno no encontrado.');
+            return $this->fail('Alumno no encontrado.', 404);
         }
 
-        // 3. Verificar que no esté ya vinculado
+        // Buscar el usuario padre del alumno para verificar contraseña
+        $usuarioPadre = $this->db->table('usuarios')
+            ->where('curp', $curp)
+            ->where('escuela_id', $alumno['escuela_id'])
+            ->get()->getRowArray();
+
+        if (!$usuarioPadre || !password_verify($json->password, $usuarioPadre['password'])) {
+            return $this->fail('Contraseña incorrecta.', 401);
+        }
+
+        // Verificar si ya está vinculado
         $yaVinculado = $this->db->table('usuario_alumno')
             ->where('usuario_id', $usuario->id)
             ->where('alumno_id', $alumno['id'])
             ->countAllResults();
 
         if ($yaVinculado) {
-            return $this->fail('Este alumno ya está vinculado a tu cuenta.', 409);
+            return $this->fail('Este alumno ya está vinculado.', 409);
         }
 
-        // 4. Vincular
+        // Vincular
         $this->db->table('usuario_alumno')->insert([
             'usuario_id' => $usuario->id,
             'alumno_id'  => $alumno['id'],
-            'relacion'   => $json->relacion,
             'created_at' => date('Y-m-d H:i:s'),
         ]);
-
-        Auditoria::log('crear', 'alumnos',
-            "Vinculó alumno: {$alumno['nombre']} (CURP: {$curp})", $usuario);
 
         return $this->respond([
             'status'  => 'ok',
             'mensaje' => 'Alumno vinculado correctamente.',
             'alumno'  => [
-                'nombre'  => $alumno['nombre'],
-                'grado'   => $alumno['grado'],
-                'grupo'   => $alumno['grupo'],
-                'relacion'=> $json->relacion,
-            ]
+                'nombre' => $alumno['nombre'],
+                'grado'  => $alumno['grado'],
+                'grupo'  => $alumno['grupo'],
+            ],
         ]);
     }
 

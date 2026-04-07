@@ -74,7 +74,7 @@ class AuthController extends ResourceController
     public function cambiarPassword()
     {
         $rules = [
-            'id'         => 'required',
+            'id'           => 'required',
             'password_old' => 'required',
             'password_new' => 'required|min_length[8]',
         ];
@@ -83,18 +83,23 @@ class AuthController extends ResourceController
             return $this->failValidationErrors($this->validator->getErrors());
         }
 
-        $json    = $this->request->getJSON();
-        $model   = new UsuarioModel();
-        $usuario = $model->findById(strtoupper($json->id));
+        $json = $this->request->getJSON();
+
+        $usuario = $this->db->table('usuarios')
+            ->where('id', $json->id)
+            ->get()->getRowArray();
 
         if (!$usuario || !password_verify($json->password_old, $usuario['password'])) {
             return $this->fail('Credenciales incorrectas.', 401);
         }
 
-        $model->update($usuario['id'], [
-            'password'          => password_hash($json->password_new, PASSWORD_DEFAULT),
-            'password_changed'  => 1,
-        ]);
+        $this->db->table('usuarios')->update(
+            [
+                'password'         => password_hash($json->password_new, PASSWORD_DEFAULT),
+                'password_changed' => 1,
+            ],
+            ['id' => $usuario['id']]
+        );
 
         return $this->respond(['status' => 'ok', 'mensaje' => 'Contraseña actualizada.']);
     }

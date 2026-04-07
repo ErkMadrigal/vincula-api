@@ -521,4 +521,97 @@ class CargaController extends ResourceController
             'calificaciones' => $calificaciones,
         ]);
     }
+
+    // POST /api/admin/alumno/nuevo
+    public function nuevo()
+    {
+        $usuario = $this->request->usuario;
+
+        if (!in_array($usuario->rol, ['admin', 'director', 'super_admin'])) {
+            return $this->fail('No tienes permiso.', 403);
+        }
+
+        $json  = $this->request->getJSON();
+        $rules = [
+            'curp'   => 'required|min_length[18]|max_length[18]',
+            'nombre' => 'required|max_length[150]',
+            'grado'  => 'required',
+            'grupo'  => 'required',
+        ];
+
+        if (!$this->validate($rules)) {
+            return $this->failValidationErrors($this->validator->getErrors());
+        }
+
+        $curp = strtoupper($json->curp);
+
+        // Verificar que no exista en la misma escuela
+        $existe = $this->db->table('alumnos')
+            ->where('curp', $curp)
+            ->where('escuela_id', $usuario->escuela_id)
+            ->countAllResults();
+
+        if ($existe) {
+            return $this->fail('Ya existe un alumno con esa CURP.', 409);
+        }
+
+        $uuid = \Ramsey\Uuid\Uuid::uuid4()->toString();
+
+        $this->db->table('alumnos')->insert([
+            'escuela_id' => $usuario->escuela_id,
+            'uuid'       => $uuid,
+            'curp'       => $curp,
+            'nombre'     => $json->nombre,
+            'grado'      => $json->grado,
+            'grupo'      => $json->grupo,
+            'activo'     => 1,
+            'pagado'     => 0,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        // Crear usuario padre automáticamente
+        $passwordInicial = substr($curp, 0, 8);
+
+        // Verificar si ya existe usuario con esa CURP
+        $usuarioExiste = $this->db->table('usuarios')
+            ->where('curp', $curp)
+            ->where('escuela_id', $usuario->escuela_id)
+            ->countAllResults();
+
+        if (!$usuarioExiste) {
+            $this->db->table('usuarios')->insert([
+                'escuela_id'       => $usuario->escuela_id,
+                'curp'             => $curp,
+                'nombre'           => $json->nombre,
+                'password'         => password_hash($passwordInicial, PASSWORD_DEFAULT),
+                'rol'              => 'padre',
+                'activo'           => 1,
+                'password_changed' => 0,
+                'created_at'       => date('Y-m-d H:i:s'),
+            ]);
+
+            $padreId = $this->db->insertID();
+
+            // Vincular padre con alumno
+            $alumnoId = $this->db->table('alumnos')
+                ->where('uuid', $uuid)
+                ->get()->getRowArray()['id'];
+
+            $this->db->table('usuario_alumno')->insert([
+                'usuario_id' => $padreId,
+                'alumno_id'  => $alumnoId,
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
+
+        return $this->respond([
+            'status'   => 'ok',
+            'mensaje'  => 'Alumno creado correctamente.',
+            'uuid'     => $uuid,
+            'acceso'   => [
+                'curp'     => $curp,
+                'password' => substr($curp, 0, 8),
+            ],
+        ]);
+    }
 }

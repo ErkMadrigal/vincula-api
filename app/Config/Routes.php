@@ -26,14 +26,15 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
     $routes->post('auth/login',            'AuthController::login');
     $routes->post('auth/cambiar-password', 'AuthController::cambiarPassword');
     $routes->get('qr/alumno/(:segment)',         'QrController::generar/$1');
-
+    $routes->post('dispositivo/registrar', 'DispositivoController::registrar');
+    
     // Rutas protegidas con JWT
     $routes->group('', ['filter' => 'jwt'], function ($routes) {
-
+        
         $routes->get('auth/perfil', 'AuthController::perfil');
         $routes->post('auth/foto', 'AuthController::subirFoto');
-
-
+        
+        
         // Alumnos
         $routes->get('alumno/mis-hijos',               'AlumnoController::misHijos');
         $routes->post('alumno/vincular',               'AlumnoController::vincular');
@@ -81,6 +82,7 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
             $routes->post('pagos/carga',                'PagoController::carga');
             $routes->get('pagos/estado',                'PagoController::estado');
             $routes->post('pagos/toggle/(:segment)',    'PagoController::toggle/$1');
+            $routes->get('pagos/exportar',              'PagoController::exportar');
 
             $routes->post('usuario/nuevo',  'CargaController::nuevoUsuario');
             $routes->get('usuarios',        'CargaController::listarUsuarios');

@@ -1,10 +1,11 @@
 ### Login Ellioth
-POST http://localhost/vincula-api/public/api/auth/login
+# POST http://localhost/vincula-api/public/api/auth/login
+POST http://192.168.100.63/vincula-api/public/api/auth/login
 Content-Type: application/json
 
 {
     "curp": "MAFE990706HMCDLR05",
-    "password": "MAFE9907"
+    "password": "7h41lyGGMF"
 }
 
 
