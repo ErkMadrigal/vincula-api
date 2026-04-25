@@ -22,6 +22,8 @@ $routes->get('/', 'Home::index');
 // API Vincúla
 $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes) {
     
+    $routes->get('ping', 'HealthController::ping');
+
     // Rutas públicas
     $routes->post('auth/login',            'AuthController::login');
     $routes->post('auth/cambiar-password', 'AuthController::cambiarPassword');

@@ -55,9 +55,12 @@ class AsistenciaController extends ResourceController
         if (!$alumno['pagado']) {
             return $this->fail('El alumno no tiene acceso activo.', 403);
         }
+        
 
-        $fecha = date('Y-m-d');
-        $hora  = date('H:i:s');
+        $tz    = new \DateTimeZone('America/Mexico_City');
+        $now   = new \DateTime('now', $tz);
+        $fecha = $now->format('Y-m-d');
+        $hora  = $now->format('H:i:s');
 
         // 3. Evitar duplicar entrada/salida el mismo día
         $yaRegistrado = $this->db->table('asistencias')
