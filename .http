@@ -1,6 +1,7 @@
 ### Login Ellioth
 # POST http://localhost/vincula-api/public/api/auth/login
-POST http://192.168.100.63/vincula-api/public/api/auth/login
+# POST http://192.168.100.63/vincula-api/public/api/auth/login
+POST https://api.vincula365.com/api/auth/login
 Content-Type: application/json
 
 {
