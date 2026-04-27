@@ -66,7 +66,7 @@ class AuthController extends ResourceController
             'rol'              => $usuario['rol'],
             'escuela_id'       => $usuario['escuela_id'],
             'password_changed' => (bool)$usuario['password_changed'],
-            '|curp'            => $usuario['curp'],
+            'curp'            => $usuario['curp'],
         ]
     ]);
     }
