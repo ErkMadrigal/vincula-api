@@ -37,3 +37,13 @@ Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6IjEiLCJlc2N1Z
 GET http://localhost/vincula-api/public/api/leads
 Content-Type: application/json
 Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6IjEiLCJlc2N1ZWxhX2lkIjoiMSIsInJvbCI6InN1cGVyX2FkbWluIiwibm9tYnJlIjoiRXJrIE1hZHJpZ2FsIEZsb3JlcyIsImN1cnAiOiJNQUZFOTkwNzA2SE1DRExSMDUiLCJpYXQiOjE3Nzc4NTcwNDMsImV4cCI6MTc3Nzk0MzQ0M30.aAzjVorPlsPI8hA7G0aLLHz1yyiXJW7dnkqvr4l--HI
+
+
+### leads
+PUT http://localhost/vincula-api/public/api/leads/status/1
+Content-Type: application/json
+Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6IjEiLCJlc2N1ZWxhX2lkIjoiMSIsInJvbCI6InN1cGVyX2FkbWluIiwibm9tYnJlIjoiRXJrIE1hZHJpZ2FsIEZsb3JlcyIsImN1cnAiOiJNQUZFOTkwNzA2SE1DRExSMDUiLCJpYXQiOjE3Nzc4NTcwNDMsImV4cCI6MTc3Nzk0MzQ0M30.aAzjVorPlsPI8hA7G0aLLHz1yyiXJW7dnkqvr4l--HI
+
+{
+    "status": "contactado"
+}
