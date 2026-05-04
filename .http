@@ -1,7 +1,7 @@
 ### Login Ellioth
-# POST http://localhost/vincula-api/public/api/auth/login
+POST http://localhost/vincula-api/public/api/auth/login
 # POST http://192.168.100.63/vincula-api/public/api/auth/login
-POST https://api.vincula365.com/api/auth/login
+# POST https://api.vincula365.com/api/auth/login
 Content-Type: application/json
 
 {
@@ -14,3 +14,26 @@ Content-Type: application/json
 GET http://localhost/vincula-api/public/api/alumno/mis-hijos
 Content-Type: application/json
 Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6IjEiLCJlc2N1ZWxhX2lkIjoiMSIsInJvbCI6InBhZHJlIiwibm9tYnJlIjoiRWxsaW90aCBNYXJ0XHUwMGVkbmV6IiwiaWF0IjoxNzc1MDg5MDQ1LCJleHAiOjE3NzUxNzU0NDV9.DbGvq5_hOFJqI_B8jmCRZ7b5NnBcRRUDQBsRuSpkE64
+
+
+### new leads 
+
+POST http://localhost/vincula-api/public/api/leads/nuevo
+Content-Type: application/json
+Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6IjEiLCJlc2N1ZWxhX2lkIjoiMSIsInJvbCI6InN1cGVyX2FkbWluIiwibm9tYnJlIjoiRXJrIE1hZHJpZ2FsIEZsb3JlcyIsImN1cnAiOiJNQUZFOTkwNzA2SE1DRExSMDUiLCJpYXQiOjE3Nzc4NTcwNDMsImV4cCI6MTc3Nzk0MzQ0M30.aAzjVorPlsPI8hA7G0aLLHz1yyiXJW7dnkqvr4l--HI
+
+{
+    "nombre": "Juan García López",
+    "escuela": "Primaria Benito Juárez",
+    "telefono": "5512345678",
+    "correo": "director@escuela.edu.mx",
+    "alumnos": "100 - 300 alumnos",
+    "intereses": "asistencias, pagos, notificaciones",
+    "mensaje": "Me interesa una demo para ver cómo funciona"
+}
+
+
+### leads
+GET http://localhost/vincula-api/public/api/leads
+Content-Type: application/json
+Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6IjEiLCJlc2N1ZWxhX2lkIjoiMSIsInJvbCI6InN1cGVyX2FkbWluIiwibm9tYnJlIjoiRXJrIE1hZHJpZ2FsIEZsb3JlcyIsImN1cnAiOiJNQUZFOTkwNzA2SE1DRExSMDUiLCJpYXQiOjE3Nzc4NTcwNDMsImV4cCI6MTc3Nzk0MzQ0M30.aAzjVorPlsPI8hA7G0aLLHz1yyiXJW7dnkqvr4l--HI

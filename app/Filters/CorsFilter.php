@@ -18,6 +18,9 @@ class CorsFilter implements FilterInterface
             'http://192.168.100.63:8100',
             'capacitor://localhost',
             'ionic://localhost',
+            'https://vincula365.com',
+            'https://app.vincula365.com',
+            'https://www.vincula365.com',
         ];
 
         if (in_array($origin, $allowed)) {

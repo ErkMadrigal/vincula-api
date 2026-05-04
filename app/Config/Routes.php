@@ -4,7 +4,17 @@ use CodeIgniter\Router\RouteCollection;
 
 // Preflight CORS
 $routes->options('(:any)', function() {
-    header('Access-Control-Allow-Origin: http://localhost:5173');
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    $allowed = [
+        'http://localhost:5173',
+        'http://localhost:8100',
+        'https://vincula365.com',
+        'https://app.vincula365.com',
+        'https://www.vincula365.com',
+    ];
+    if (in_array($origin, $allowed)) {
+        header('Access-Control-Allow-Origin: ' . $origin);
+    }
     header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
     header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH');
     header('Access-Control-Allow-Credentials: true');
@@ -23,6 +33,8 @@ $routes->get('/', 'Home::index');
 $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes) {
     
     $routes->get('ping', 'HealthController::ping');
+    $routes->post('leads/nuevo', 'LeadController::nuevo', ['namespace' => 'App\Controllers\Api']);
+
 
     // Rutas públicas
     $routes->post('auth/login',            'AuthController::login');
@@ -111,7 +123,9 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
         $routes->get('superadmin/usuarios',                        'SuperAdminController::usuarios');
         $routes->put('superadmin/usuario/editar/(:num)',           'SuperAdminController::editarUsuario/$1');
         $routes->put('superadmin/usuario/reset-password/(:num)',   'SuperAdminController::resetPassword/$1');
-
+        
+        $routes->get('leads',                    'LeadController::index',           ['namespace' => 'App\Controllers\Api', 'filter' => 'jwt']);
+        $routes->put('leads/status/(:num)',      'LeadController::actualizarStatus/$1', ['namespace' => 'App\Controllers\Api', 'filter' => 'jwt']);
         
 
     });
