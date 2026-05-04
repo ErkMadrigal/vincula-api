@@ -9,7 +9,7 @@
     <meta property="og:url" content="https://api.vincula365.com">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta property="og:title" content="Vincula API">
-    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
 
     <script src="https://cdn.tailwindcss.com"></script>
 
