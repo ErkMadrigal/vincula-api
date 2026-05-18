@@ -20,7 +20,7 @@ class CargaController extends ResourceController
     {
         $usuario = $this->request->usuario;
 
-        if (!in_array($usuario->rol, ['admin', 'super_admin'])) {
+        if (!in_array($usuario->rol, ['admin', 'super_admin', 'director'])) {
             return $this->fail('No tienes permiso para esta acción.', 403);
         }
 
