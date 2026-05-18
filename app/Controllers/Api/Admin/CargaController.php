@@ -102,7 +102,6 @@ class CargaController extends ResourceController
             // 2. Buscar o crear usuario padre
             $usuarioExistente = $this->db->table('usuarios')
                 ->where('curp', $curp)
-                ->where('escuela_id', $usuario->escuela_id)
                 ->get()->getRowArray();
 
             if ($usuarioExistente) {
