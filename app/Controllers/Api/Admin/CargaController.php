@@ -51,12 +51,11 @@ class CargaController extends ResourceController
         $omitidos = [];
 
         foreach ($hoja as $i => $fila) {
-            $fila = array_map('trim', $fila);
-            $linea = $i + 2; // número de fila real en el xlsx
+            $fila  = array_map('trim', $fila);
+            $linea = $i + 2;
 
             [$curp, $nombre, $grado, $grupo] = array_pad($fila, 4, null);
 
-            // Validaciones básicas
             if (empty($curp) || empty($nombre)) {
                 $errores[] = "Fila {$linea}: CURP y nombre son obligatorios.";
                 continue;
@@ -83,7 +82,6 @@ class CargaController extends ResourceController
             $uuid     = $this->_generarUuid();
             $password = password_hash(substr($curp, 0, 8), PASSWORD_DEFAULT);
 
-            // Iniciar transacción
             $this->db->transStart();
 
             // 1. Insertar alumno
@@ -99,27 +97,35 @@ class CargaController extends ResourceController
                 'created_at' => date('Y-m-d H:i:s'),
             ]);
 
-            $alumnoId = $this->db->insertID();
+            $alumnoId = (int) $this->db->insertID();
 
-            // 2. Insertar usuario (puede que ya exista si el papá tiene otro hijo)
+            // 2. Buscar o crear usuario padre
             $usuarioExistente = $this->db->table('usuarios')
                 ->where('curp', $curp)
                 ->where('escuela_id', $usuario->escuela_id)
                 ->get()->getRowArray();
 
             if ($usuarioExistente) {
-                $usuarioId = $usuarioExistente['id'];
+                $usuarioId = (int) $usuarioExistente['id'];
             } else {
                 $this->db->table('usuarios')->insert([
-                    'escuela_id' => $usuario->escuela_id,
-                    'curp'       => $curp,
-                    'nombre'     => $nombre,
-                    'password'   => $password,
-                    'rol'        => 'padre',
-                    'activo'     => 1,
-                    'created_at' => date('Y-m-d H:i:s'),
+                    'escuela_id'       => $usuario->escuela_id,
+                    'curp'             => $curp,
+                    'nombre'           => $nombre,
+                    'password'         => $password,
+                    'rol'              => 'padre',
+                    'activo'           => 1,
+                    'password_changed' => 0,
+                    'created_at'       => date('Y-m-d H:i:s'),
                 ]);
-                $usuarioId = $this->db->insertID();
+                $usuarioId = (int) $this->db->insertID();
+            }
+
+            // Verificar que tenemos IDs válidos antes de vincular
+            if (!$usuarioId || !$alumnoId) {
+                $errores[] = "Fila {$linea}: No se pudo obtener ID de usuario o alumno para {$nombre}.";
+                $this->db->transRollback();
+                continue;
             }
 
             // 3. Vincular usuario con alumno
@@ -154,10 +160,10 @@ class CargaController extends ResourceController
         );
 
         return $this->respond([
-            'status'         => 'ok',
-            'creados'        => count($creados),
-            'omitidos'       => count($omitidos),
-            'errores'        => count($errores),
+            'status'           => 'ok',
+            'creados'          => count($creados),
+            'omitidos'         => count($omitidos),
+            'errores'          => count($errores),
             'detalle_creados'  => $creados,
             'detalle_omitidos' => $omitidos,
             'detalle_errores'  => $errores,
