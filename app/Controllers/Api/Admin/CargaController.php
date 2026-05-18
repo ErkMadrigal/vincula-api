@@ -24,6 +24,10 @@ class CargaController extends ResourceController
             return $this->fail('No tienes permiso para esta acción.', 403);
         }
 
+        // Aumentar límites para carga masiva
+        set_time_limit(600);
+        ini_set('memory_limit', '256M');
+
         $archivo = $this->request->getFile('archivo');
 
         if (!$archivo || !$archivo->isValid()) {
@@ -45,6 +49,11 @@ class CargaController extends ResourceController
 
         // Quitar encabezado
         array_shift($hoja);
+
+        // Filtrar filas vacías
+        $hoja = array_values(array_filter($hoja, function($fila) {
+            return !empty(trim($fila[0] ?? '')) && !empty(trim($fila[1] ?? ''));
+        }));
 
         $creados  = [];
         $errores  = [];
@@ -68,7 +77,6 @@ class CargaController extends ResourceController
                 continue;
             }
 
-            // Verificar si el alumno ya existe en esta escuela
             $existeAlumno = $this->db->table('alumnos')
                 ->where('curp', $curp)
                 ->where('escuela_id', $usuario->escuela_id)
@@ -120,7 +128,6 @@ class CargaController extends ResourceController
                 $usuarioId = (int) $this->db->insertID();
             }
 
-            // Verificar que tenemos IDs válidos antes de vincular
             if (!$usuarioId || !$alumnoId) {
                 $errores[] = "Fila {$linea}: No se pudo obtener ID de usuario o alumno para {$nombre}.";
                 $this->db->transRollback();
@@ -148,6 +155,11 @@ class CargaController extends ResourceController
                 $creados[] = "{$nombre} ({$curp})";
             } else {
                 $errores[] = "Fila {$linea}: Error al guardar {$nombre}.";
+            }
+
+            // Liberar memoria cada 50 registros
+            if ($i % 50 === 0) {
+                gc_collect_cycles();
             }
         }
 
