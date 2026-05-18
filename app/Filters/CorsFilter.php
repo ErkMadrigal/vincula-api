@@ -19,6 +19,7 @@ class CorsFilter implements FilterInterface
             'capacitor://localhost',
             'ionic://localhost',
             'https://vincula365.com',
+            'https://admin.vincula365.com',
             'https://app.vincula365.com',
             'https://www.vincula365.com',
         ];

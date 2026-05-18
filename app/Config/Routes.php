@@ -10,6 +10,7 @@ $routes->options('(:any)', function() {
         'http://localhost:8100',
         'https://vincula365.com',
         'https://app.vincula365.com',
+        'https://admin.vincula365.com',
         'https://www.vincula365.com',
     ];
     if (in_array($origin, $allowed)) {
