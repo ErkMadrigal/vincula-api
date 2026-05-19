@@ -24,7 +24,7 @@ class AsistenciaController extends ResourceController
         $usuario = $this->request->usuario;
 
         // Solo maestros y admins pueden registrar asistencia
-        if (!in_array($usuario->rol, ['maestro', 'admin', 'super_admin'])) {
+        if (!in_array($usuario->rol, ['maestro', 'admin', 'super_admin', 'director'])) {
             return $this->fail('No tienes permiso para registrar asistencia.', 403);
         }
 
