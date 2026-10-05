@@ -39,16 +39,34 @@ class AsistenciaController extends ResourceController
 
         $json = $this->request->getJSON();
 
-        // 1. Buscar alumno por UUID dentro de la misma escuela
+        // 1. Buscar alumno por UUID (QR) o por CURP (código de barras / manual)
+        //    dentro de la misma escuela
+        $codigo = strtoupper(trim((string) $json->alumno_uuid));
+        $curp   = null;
+
+        // El código de barras de la CURP puede traer más datos (ej. separados por |),
+        // así que extraemos la CURP con regex. Un UUID nunca hace match con este patrón.
+        if (preg_match('/[A-Z]{4}\d{6}[HMX][A-Z]{5}[A-Z0-9]\d/', $codigo, $m)) {
+            $curp = $m[0];
+        }
+
         $alumnoModel = new AlumnoModel();
-        $alumno = $alumnoModel
-            ->where('uuid', $json->alumno_uuid)
+        $alumnoModel
             ->where('escuela_id', $usuario->escuela_id)
-            ->where('activo', 1)
-            ->first();
+            ->where('activo', 1);
+
+        if ($curp) {
+            $alumnoModel->where('curp', $curp);
+        } else {
+            $alumnoModel->where('uuid', trim((string) $json->alumno_uuid));
+        }
+
+        $alumno = $alumnoModel->first();
 
         if (!$alumno) {
-            return $this->failNotFound('Alumno no encontrado.');
+            return $this->failNotFound(
+                $curp ? "No se encontró ningún alumno con la CURP {$curp}." : 'Alumno no encontrado.'
+            );
         }
 
         // 2. Verificar que el alumno esté pagado
@@ -134,18 +152,19 @@ class AsistenciaController extends ResourceController
     public function hoy()
     {
         $usuario = $this->request->usuario;
+        $hoy     = (new \DateTime('now', new \DateTimeZone('America/Mexico_City')))->format('Y-m-d');
 
         $asistencias = $this->db->table('asistencias a')
             ->select('a.id, al.nombre as alumno, al.grado, al.grupo, a.tipo, a.hora')
             ->join('alumnos al', 'al.id = a.alumno_id')
             ->where('a.escuela_id', $usuario->escuela_id)
-            ->where('a.fecha', date('Y-m-d'))
+            ->where('a.fecha', $hoy)
             ->orderBy('a.hora', 'DESC')
             ->get()->getResultArray();
 
         return $this->respond([
             'status'      => 'ok',
-            'fecha'       => date('Y-m-d'),
+            'fecha'       => $hoy,
             'asistencias' => $asistencias,
         ]);
     }
