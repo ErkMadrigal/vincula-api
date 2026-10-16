@@ -41,10 +41,12 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
     $routes->post('auth/login',            'AuthController::login');
     $routes->post('auth/cambiar-password', 'AuthController::cambiarPassword');
     $routes->get('qr/alumno/(:segment)',         'QrController::generar/$1');
-    $routes->post('dispositivo/registrar', 'DispositivoController::registrar');
     
     // Rutas protegidas con JWT
     $routes->group('', ['filter' => 'jwt'], function ($routes) {
+
+        // Push: registrar token FCM del dispositivo (requiere JWT para saber de quién es)
+        $routes->post('dispositivo/registrar', 'DispositivoController::registrar');
         
         $routes->get('auth/perfil', 'AuthController::perfil');
         $routes->post('auth/foto', 'AuthController::subirFoto');

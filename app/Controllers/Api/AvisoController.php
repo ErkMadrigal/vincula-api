@@ -62,7 +62,7 @@ class AvisoController extends ResourceController
             $query->where('a.grupo', $json->grupo);
         }
 
-        $tokens = array_column($query->get()->getResultArray(), 'd.fcm_token');
+        $tokens = array_column($query->get()->getResultArray(), 'fcm_token');
 
         $resultado = ['enviados' => 0, 'errores' => 0];
         if (!empty($tokens)) {

@@ -46,7 +46,13 @@ class FirebaseNotification
             return ['enviados' => 0, 'errores' => 0];
         }
 
-        $accessToken = $this->getAccessToken();
+        // Si Firebase falla, no debe tumbar el registro de asistencia/aviso/etc.
+        try {
+            $accessToken = $this->getAccessToken();
+        } catch (\Throwable $e) {
+            log_message('error', 'Firebase auth error: ' . $e->getMessage());
+            return ['enviados' => 0, 'errores' => count($tokens)];
+        }
         $url = "https://fcm.googleapis.com/v1/projects/{$this->projectId}/messages:send";
 
         $enviados = 0;
@@ -65,7 +71,6 @@ class FirebaseNotification
                     'android' => [
                         'notification' => [
                             'sound' => 'default',
-                            'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
                         ],
                     ],
                     'apns' => [
@@ -97,8 +102,14 @@ class FirebaseNotification
             } else {
                 $errores++;
 
-                // Debug opcional
                 log_message('error', 'Firebase error: ' . $response);
+
+                // Token que ya no existe (app desinstalada, etc.) → desactivarlo
+                if ($httpCode === 404 || str_contains((string) $response, 'UNREGISTERED')) {
+                    \Config\Database::connect()->table('dispositivos')
+                        ->where('fcm_token', $token)
+                        ->update(['activo' => 0, 'updated_at' => date('Y-m-d H:i:s')]);
+                }
             }
         }
 

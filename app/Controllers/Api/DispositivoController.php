@@ -19,9 +19,15 @@ class DispositivoController extends ResourceController
         $usuario = $this->request->usuario;
         $json    = $this->request->getJSON();
 
+        if (empty($usuario->id)) {
+            return $this->failUnauthorized('Sesión inválida.');
+        }
+
         if (empty($json->token)) {
             return $this->fail('Token requerido.', 400);
         }
+
+        $plataforma = (($json->plataforma ?? '') === 'ios') ? 'ios' : 'android';
 
         $existe = $this->db->table('dispositivos')
             ->where('fcm_token', $json->token)
@@ -31,6 +37,7 @@ class DispositivoController extends ResourceController
             $this->db->table('dispositivos')->update(
                 [
                     'usuario_id' => $usuario->id,
+                    'plataforma' => $plataforma,
                     'activo'     => 1,
                     'updated_at' => date('Y-m-d H:i:s'),
                 ],
@@ -40,7 +47,7 @@ class DispositivoController extends ResourceController
             $this->db->table('dispositivos')->insert([
                 'usuario_id' => $usuario->id,
                 'fcm_token'  => $json->token,
-                'plataforma' => 'android',
+                'plataforma' => $plataforma,
                 'activo'     => 1,
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
