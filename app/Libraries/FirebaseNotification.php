@@ -107,10 +107,10 @@ class FirebaseNotification
                             'TTL'     => '86400',
                         ],
                         'notification' => [
-                            'icon' => 'https://app.vincula365.com/assets/icons/icon-192.webp',
+                            'icon' => 'https://app.vincula365.com/pwa/assets/icons/icon-192.webp',
                         ],
                         'fcm_options' => [
-                            'link' => 'https://app.vincula365.com/',
+                            'link' => 'https://app.vincula365.com/pwa/',
                         ],
                     ],
                 ],
