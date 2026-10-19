@@ -75,9 +75,9 @@ class SuperAdminController extends ResourceController
         }
 
         $escuelas = $this->db->table('escuelas e')
-            ->select('e.id, e.nombre, e.subdominio, e.plan, e.activa, e.created_at,
+            ->select('e.id, e.nombre, e.subdominio, e.plan, e.activa, e.cobro_activo, e.created_at,
                     COUNT(DISTINCT a.id) as total_alumnos,
-                    SUM(DISTINCT CASE WHEN a.pagado = 1 THEN 1 ELSE 0 END) as alumnos_pagados')
+                    COUNT(DISTINCT CASE WHEN a.pagado = 1 THEN a.id END) as alumnos_pagados')
             ->join('alumnos a', 'a.escuela_id = e.id AND a.activo = 1', 'left')
             ->groupBy('e.id')
             ->orderBy('e.created_at', 'DESC')
@@ -244,6 +244,15 @@ class SuperAdminController extends ResourceController
             'created_at' => date('Y-m-d H:i:s'),
         ]);
 
+        if ($json->rol === 'admin') {
+            $this->db->table('admin_escuelas')->ignore(true)->insert([
+                'usuario_id' => (int) $this->db->insertID(),
+                'escuela_id' => (int) $json->escuela_id,
+                'origen'     => 'asignada',
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
+
         return $this->respond([
             'status'  => 'ok',
             'mensaje' => 'Usuario creado correctamente.',
@@ -334,6 +343,105 @@ class SuperAdminController extends ResourceController
             'status'   => 'ok',
             'mensaje'  => 'Contraseña restablecida.',
             'password' => substr($target['curp'], 0, 8),
+        ]);
+    }
+
+    // ─── Admins y sus escuelas ─────────────────────────────────────────────────
+
+    // GET /api/superadmin/admins
+    public function admins()
+    {
+        if ($this->request->usuario->rol !== 'super_admin') {
+            return $this->fail('No tienes permiso.', 403);
+        }
+
+        $admins = $this->db->table('usuarios')
+            ->select('id, curp, nombre, activo')
+            ->where('rol', 'admin')
+            ->orderBy('nombre', 'ASC')
+            ->get()->getResultArray();
+
+        $asignaciones = $this->db->table('admin_escuelas ae')
+            ->select('ae.usuario_id, ae.origen, e.id, e.nombre')
+            ->join('escuelas e', 'e.id = ae.escuela_id')
+            ->orderBy('e.nombre', 'ASC')
+            ->get()->getResultArray();
+
+        $porAdmin = [];
+        foreach ($asignaciones as $a) {
+            $porAdmin[$a['usuario_id']][] = ['id' => (int) $a['id'], 'nombre' => $a['nombre'], 'origen' => $a['origen']];
+        }
+        foreach ($admins as &$ad) {
+            $ad['escuelas'] = $porAdmin[$ad['id']] ?? [];
+        }
+
+        return $this->respond(['status' => 'ok', 'admins' => $admins]);
+    }
+
+    // PUT /api/superadmin/admins/:id/escuelas   { escuelas: [ids] }
+    // Reemplaza las escuelas ASIGNADAS. Las que el admin creó se conservan siempre.
+    public function asignarEscuelas(int $id = 0)
+    {
+        if ($this->request->usuario->rol !== 'super_admin') {
+            return $this->fail('No tienes permiso.', 403);
+        }
+
+        $admin = $this->db->table('usuarios')->where('id', $id)->where('rol', 'admin')->get()->getRowArray();
+        if (!$admin) {
+            return $this->failNotFound('Admin no encontrado.');
+        }
+
+        $ids = array_values(array_unique(array_map('intval', (array) ($this->request->getJSON()->escuelas ?? []))));
+        if ($ids) {
+            $validas = $this->db->table('escuelas')->select('id')->whereIn('id', $ids)->get()->getResultArray();
+            $ids = array_map('intval', array_column($validas, 'id'));
+        }
+
+        $creadas = array_map('intval', array_column(
+            $this->db->table('admin_escuelas')->select('escuela_id')
+                ->where('usuario_id', $id)->where('origen', 'creada')->get()->getResultArray(),
+            'escuela_id'
+        ));
+
+        $this->db->transStart();
+        $this->db->table('admin_escuelas')->where('usuario_id', $id)->where('origen', 'asignada')->delete();
+        foreach (array_diff($ids, $creadas) as $escuelaId) {
+            $this->db->table('admin_escuelas')->insert([
+                'usuario_id' => $id,
+                'escuela_id' => $escuelaId,
+                'origen'     => 'asignada',
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
+        $this->db->transComplete();
+
+        \App\Libraries\Auditoria::log('actualizar', 'admin_escuelas',
+            "Asignó " . count($ids) . " escuelas a {$admin['nombre']}", $this->request->usuario);
+
+        return $this->respond(['status' => 'ok', 'mensaje' => 'Escuelas asignadas.']);
+    }
+
+    // PUT /api/superadmin/escuelas/cobro/:id
+    // Enciende/apaga el cobro de la escuela. Apagado = la asistencia no revisa pagos.
+    public function toggleCobro(int $id = 0)
+    {
+        if ($this->request->usuario->rol !== 'super_admin') {
+            return $this->fail('No tienes permiso.', 403);
+        }
+
+        $escuela = $this->db->table('escuelas')->where('id', $id)->get()->getRowArray();
+        if (!$escuela) {
+            return $this->failNotFound('Escuela no encontrada.');
+        }
+
+        $nuevo = $escuela['cobro_activo'] ? 0 : 1;
+        $this->db->table('escuelas')->where('id', $id)
+            ->update(['cobro_activo' => $nuevo, 'updated_at' => date('Y-m-d H:i:s')]);
+
+        return $this->respond([
+            'status'       => 'ok',
+            'cobro_activo' => $nuevo,
+            'mensaje'      => $nuevo ? 'Cobro activado.' : 'Cobro desactivado.',
         ]);
     }
 }

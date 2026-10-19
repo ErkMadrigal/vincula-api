@@ -339,7 +339,7 @@ class CargaController extends ResourceController
         $rules = [
             'curp'   => 'required|min_length[18]|max_length[18]',
             'nombre' => 'required',
-            'rol'    => 'required|in_list[admin,director,maestro]',
+            'rol'    => $usuario->rol === 'super_admin' ? 'required|in_list[admin,director,maestro]' : 'required|in_list[director,maestro]',
         ];
 
         if (!$this->validate($rules)) {

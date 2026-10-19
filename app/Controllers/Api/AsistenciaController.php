@@ -69,8 +69,11 @@ class AsistenciaController extends ResourceController
             );
         }
 
-        // 2. Verificar que el alumno esté pagado
-        if (!$alumno['pagado']) {
+        // 2. Verificar pago SOLO si la escuela tiene el cobro activado (escuelas privadas)
+        $cobroActivo = (int) ($this->db->table('escuelas')->select('cobro_activo')
+            ->where('id', $usuario->escuela_id)->get()->getRowArray()['cobro_activo'] ?? 0);
+
+        if ($cobroActivo && !$alumno['pagado']) {
             return $this->fail('El alumno no tiene acceso activo.', 403);
         }
         

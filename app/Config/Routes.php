@@ -117,6 +117,15 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
 
         });
 
+        // Escuelas visibles (selector) y alta de escuelas por el admin
+        $routes->get('mis-escuelas',     'EscuelaController::misEscuelas');
+        $routes->post('escuelas/nueva',  'EscuelaController::nueva');
+
+        // Super admin: admins ↔ escuelas y cobro por escuela
+        $routes->get('superadmin/admins',                   'SuperAdminController::admins');
+        $routes->put('superadmin/admins/(:num)/escuelas',   'SuperAdminController::asignarEscuelas/$1');
+        $routes->put('superadmin/escuelas/cobro/(:num)',    'SuperAdminController::toggleCobro/$1');
+
         $routes->get('superadmin/dashboard', 'SuperAdminController::dashboard');
         $routes->get('superadmin/escuelas',  'SuperAdminController::escuelas');
 

@@ -24,7 +24,7 @@ class PagoController extends ResourceController
     {
         $usuario = $this->request->usuario;
 
-        if (!in_array($usuario->rol, ['admin', 'director', 'super_admin'])) {
+        if ($usuario->rol !== 'super_admin') { // pagos y precios: solo super admin
             return $this->fail('No tienes permiso.', 403);
         }
 
@@ -80,7 +80,7 @@ class PagoController extends ResourceController
     {
         $usuario = $this->request->usuario;
 
-        if (!in_array($usuario->rol, ['admin', 'director', 'super_admin'])) {
+        if ($usuario->rol !== 'super_admin') { // pagos y precios: solo super admin
             return $this->fail('No tienes permiso.', 403);
         }
 
@@ -159,7 +159,7 @@ class PagoController extends ResourceController
     {
         $usuario = $this->request->usuario;
 
-        if (!in_array($usuario->rol, ['admin', 'director', 'super_admin'])) {
+        if ($usuario->rol !== 'super_admin') { // pagos y precios: solo super admin
             return $this->fail('No tienes permiso.', 403);
         }
 
@@ -189,7 +189,7 @@ class PagoController extends ResourceController
     {
         $usuario = $this->request->usuario;
 
-        if (!in_array($usuario->rol, ['admin', 'director', 'super_admin'])) {
+        if ($usuario->rol !== 'super_admin') { // pagos y precios: solo super admin
             return $this->fail('No tienes permiso.', 403);
         }
 
