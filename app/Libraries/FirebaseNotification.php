@@ -60,6 +60,8 @@ class FirebaseNotification
 
         foreach ($tokens as $token) {
 
+            // Todo en prioridad ALTA para que llegue aunque el teléfono esté
+            // en reposo (Doze) y se muestre con la app abierta o cerrada.
             $payload = [
                 'message' => [
                     'token' => $token,
@@ -67,35 +69,69 @@ class FirebaseNotification
                         'title' => $titulo,
                         'body'  => $cuerpo,
                     ],
-                    'data' => array_map('strval', $data),
+                    'data' => array_map('strval', $data + ['title' => $titulo, 'body' => $cuerpo]),
                     'android' => [
+                        'priority' => 'high',
+                        'ttl'      => '86400s', // si el teléfono está apagado, se entrega al prenderlo (hasta 24 h)
                         'notification' => [
-                            'sound' => 'default',
+                            'channel_id'              => 'vincula_alertas',
+                            'sound'                   => 'default',
+                            'notification_priority'   => 'PRIORITY_MAX',
+                            'visibility'              => 'PUBLIC',
+                            'default_vibrate_timings' => true,
                         ],
                     ],
                     'apns' => [
+                        'headers' => [
+                            'apns-priority'  => '10',
+                            'apns-push-type' => 'alert',
+                        ],
                         'payload' => [
                             'aps' => [
                                 'sound' => 'default',
                             ],
                         ],
                     ],
+                    'webpush' => [
+                        'headers' => [
+                            'Urgency' => 'high',
+                            'TTL'     => '86400',
+                        ],
+                        'notification' => [
+                            'icon' => 'https://app.vincula365.com/assets/icons/icon-192.webp',
+                        ],
+                        'fcm_options' => [
+                            'link' => 'https://app.vincula365.com/',
+                        ],
+                    ],
                 ],
             ];
 
-            $ch = curl_init($url);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Authorization: Bearer ' . $accessToken,
-                'Content-Type: application/json',
-            ]);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+            // Reintento si FCM responde 429 (saturado) o 5xx (error temporal)
+            $intentos = 0;
+            do {
+                $intentos++;
 
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $ch = curl_init($url);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Authorization: Bearer ' . $accessToken,
+                    'Content-Type: application/json',
+                ]);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
 
-            curl_close($ch);
+                $response = curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+                curl_close($ch);
+
+                $reintentar = ($httpCode === 429 || $httpCode >= 500 || $httpCode === 0) && $intentos < 3;
+                if ($reintentar) {
+                    usleep(500000 * $intentos); // 0.5 s, luego 1 s
+                }
+            } while ($reintentar);
 
             if ($httpCode === 200) {
                 $enviados++;

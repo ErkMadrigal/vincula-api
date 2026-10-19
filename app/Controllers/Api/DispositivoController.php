@@ -27,7 +27,9 @@ class DispositivoController extends ResourceController
             return $this->fail('Token requerido.', 400);
         }
 
-        $plataforma = (($json->plataforma ?? '') === 'ios') ? 'ios' : 'android';
+        $plataforma = in_array($json->plataforma ?? '', ['android', 'ios', 'web'], true)
+            ? $json->plataforma
+            : 'android';
 
         $existe = $this->db->table('dispositivos')
             ->where('fcm_token', $json->token)

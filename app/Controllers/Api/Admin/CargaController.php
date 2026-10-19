@@ -47,6 +47,10 @@ class CargaController extends ResourceController
             return $this->fail('No se pudo leer el archivo: ' . $e->getMessage(), 400);
         }
 
+        // Si el encabezado trae nombres de columna (CURP, NOMBRE(S), APELLIDOS, GRADO, GRUPO)
+        // se usan esos, sin importar el orden ni columnas extra (ej. un consecutivo "No.").
+        $hoja = $this->_reordenarPorEncabezado($hoja);
+
         // Quitar encabezado
         array_shift($hoja);
 
@@ -281,6 +285,35 @@ class CargaController extends ResourceController
     }
 
     // ─── Genera UUID v4 ───────────────────────────────────────────────────────
+    /**
+     * Reacomoda las filas a [curp, nombre, grado, grupo] usando el encabezado.
+     * Si el encabezado no trae "CURP", deja el archivo como está (formato por posición).
+     */
+    private function _reordenarPorEncabezado(array $hoja): array
+    {
+        if (!$hoja) return $hoja;
+
+        $norm = fn($h) => strtr(mb_strtoupper(trim((string) $h)), ['Á'=>'A','É'=>'E','Í'=>'I','Ó'=>'O','Ú'=>'U']);
+        $idx  = [];
+        foreach ($hoja[0] as $i => $h) {
+            $h = $norm($h);
+            if (!isset($idx[$h])) $idx[$h] = $i;
+        }
+        if (!isset($idx['CURP'])) return $hoja;
+
+        $col = fn($fila, $k) => isset($idx[$k]) ? trim((string) ($fila[$idx[$k]] ?? '')) : '';
+
+        $salida = [['CURP', 'NOMBRE', 'GRADO', 'GRUPO']];
+        foreach (array_slice($hoja, 1) as $fila) {
+            $nombre = $col($fila, 'NOMBRE') ?: $col($fila, 'NOMBRES');
+            $nombre = trim($nombre . ' ' . ($col($fila, 'APELLIDOS') ?: $col($fila, 'APELLIDO')));
+            $grado  = $fila[$idx['GRADO'] ?? -1] ?? '';
+            if (is_float($grado) && floor($grado) == $grado) $grado = (int) $grado;
+            $salida[] = [$col($fila, 'CURP'), $nombre, (string) $grado, $col($fila, 'GRUPO')];
+        }
+        return $salida;
+    }
+
     private function _generarUuid(): string
     {
         return sprintf(

@@ -89,6 +89,7 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
         // Admin — carga masiva
         $routes->group('admin', ['namespace' => 'App\Controllers\Api\Admin'], function ($routes) {
             $routes->post('carga/alumnos',              'CargaController::alumnos');
+            $routes->post('carga/alumnos-actualizar',   'ActualizacionAlumnosController::procesar');
             $routes->post('carga/maestros',             'CargaController::maestros');
             $routes->post('alumno/nuevo',               'CargaController::nuevo');
             $routes->post('calificaciones/carga',       'CalificacionController::carga');
