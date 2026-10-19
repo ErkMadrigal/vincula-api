@@ -2,24 +2,29 @@
 namespace App\Libraries;
 class FirebaseNotification
 {
-    private string $projectId;
+    private string $projectId = '';
     private string $credentialsPath;
+    private ?string $errorConfig = null; // si hay error, enviar() no hace nada (no tumba la petición)
 
     public function __construct()
     {
         $this->credentialsPath = APPPATH . 'Config/firebase-credentials.json';
 
         if (!file_exists($this->credentialsPath)) {
-            throw new \Exception('No existe firebase-credentials.json');
+            $this->errorConfig = 'No existe app/Config/firebase-credentials.json';
+            log_message('error', 'Firebase: ' . $this->errorConfig);
+            return;
         }
 
         // Setear credenciales una sola vez
         putenv('GOOGLE_APPLICATION_CREDENTIALS=' . $this->credentialsPath);
 
-        $credentials = json_decode(file_get_contents($this->credentialsPath), true);
+        $credentials = json_decode((string) file_get_contents($this->credentialsPath), true);
 
         if (!$credentials || !isset($credentials['project_id'])) {
-            throw new \Exception('Credenciales de Firebase inválidas');
+            $this->errorConfig = 'Credenciales de Firebase inválidas';
+            log_message('error', 'Firebase: ' . $this->errorConfig);
+            return;
         }
 
         $this->projectId = $credentials['project_id'];
@@ -44,6 +49,10 @@ class FirebaseNotification
     {
         if (empty($tokens)) {
             return ['enviados' => 0, 'errores' => 0];
+        }
+
+        if ($this->errorConfig !== null) {
+            return ['enviados' => 0, 'errores' => count($tokens), 'error' => $this->errorConfig];
         }
 
         // Si Firebase falla, no debe tumbar el registro de asistencia/aviso/etc.

@@ -3,6 +3,7 @@ namespace App\Controllers\Api\Admin;
 
 use App\Libraries\Auditoria;
 use App\Libraries\FirebaseNotification;
+use App\Libraries\Notificador;
 use CodeIgniter\RESTful\ResourceController;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -146,30 +147,18 @@ class CalificacionController extends ResourceController
             if ($this->db->transStatus()) {
                 $procesados[] = $alumno['nombre'];
 
-                // Push al papá
-                $tokens = $this->db->table('dispositivos d')
-                    ->select('d.fcm_token')
-                    ->join('usuario_alumno ua', 'ua.usuario_id = d.usuario_id')
-                    ->where('ua.alumno_id', $alumno['id'])
-                    ->where('d.activo', 1)
-                    ->get()->getResultArray();
-
-                $fcmTokens = array_column($tokens, 'fcm_token');
-
-                if (!empty($fcmTokens)) {
-                    $firebase = new FirebaseNotification();
-                    $firebase->enviar(
-                        $fcmTokens,
-                        "Vincúla — Calificaciones disponibles",
-                        "{$alumno['nombre']} ya tiene calificaciones del bimestre {$bimestre}. Promedio: {$promedio}",
-                        [
-                            'alumno_uuid' => $alumno['uuid'],
-                            'bimestre'    => $bimestre,
-                            'ciclo'       => $ciclo,
-                            'promedio'    => $promedio,
-                        ]
-                    );
-                }
+                // Push al papá (nunca tumba la carga)
+                Notificador::enviar(
+                    Notificador::tokensDeAlumnos([$alumno['id']]),
+                    "Vincúla — Calificaciones disponibles",
+                    "{$alumno['nombre']} ya tiene calificaciones del bimestre {$bimestre}. Promedio: {$promedio}",
+                    [
+                        'alumno_uuid' => $alumno['uuid'],
+                        'bimestre'    => (string) $bimestre,
+                        'ciclo'       => (string) $ciclo,
+                        'promedio'    => (string) $promedio,
+                    ]
+                );
             } else {
                 $errores[] = "{$alumno['nombre']} ({$curp}): Error al guardar.";
             }

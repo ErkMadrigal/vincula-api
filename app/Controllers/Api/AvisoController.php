@@ -2,6 +2,7 @@
 namespace App\Controllers\Api;
 
 use App\Libraries\FirebaseNotification;
+use App\Libraries\Notificador;
 use CodeIgniter\RESTful\ResourceController;
 
 class AvisoController extends ResourceController
@@ -43,37 +44,13 @@ class AvisoController extends ResourceController
             'created_at'  => date('Y-m-d H:i:s'),
         ], true);
 
-        // Obtener FCM tokens de los padres según grado/grupo
-        $query = $this->db->table('usuarios u')
-            ->select('DISTINCT d.fcm_token')
-            ->join('usuario_alumno ua', 'ua.usuario_id = u.id')
-            ->join('alumnos a',         'a.id = ua.alumno_id')
-            ->join('dispositivos d',    'd.usuario_id = u.id')
-            ->where('u.escuela_id', $usuario->escuela_id)
-            ->where('u.rol', 'padre')
-            ->where('u.activo', 1)
-            ->where('a.activo', 1)
-            ->whereNotNull('d.fcm_token');
-
-        if (!empty($json->grado)) {
-            $query->where('a.grado', $json->grado);
-        }
-        if (!empty($json->grupo)) {
-            $query->where('a.grupo', $json->grupo);
-        }
-
-        $tokens = array_column($query->get()->getResultArray(), 'fcm_token');
-
-        $resultado = ['enviados' => 0, 'errores' => 0];
-        if (!empty($tokens)) {
-            $firebase  = new FirebaseNotification();
-            $resultado = $firebase->enviar(
-                $tokens,
-                $json->titulo,
-                $json->descripcion,
-                ['tipo' => 'aviso', 'aviso_id' => (string)$avisoId]
-            );
-        }
+        // Push a los papás de la escuela (o solo del grado/grupo del aviso)
+        $resultado = Notificador::enviar(
+            Notificador::tokensDeEscuela((int) $usuario->escuela_id, $json->grado ?? null, $json->grupo ?? null),
+            'Vincúla — ' . $json->titulo,
+            (string) $json->descripcion,
+            ['tipo' => 'aviso', 'aviso_id' => (string) $avisoId]
+        );
 
         return $this->respond([
             'status'  => 'ok',

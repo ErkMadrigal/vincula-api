@@ -3,6 +3,7 @@ namespace App\Controllers\Api;
 
 use App\Libraries\Auditoria;
 use App\Libraries\FirebaseNotification;
+use App\Libraries\Notificador;
 use App\Models\AlumnoModel;
 use CodeIgniter\RESTful\ResourceController;
 
@@ -76,45 +77,37 @@ class IncidenciaController extends ResourceController
 
         $incidenciaId = $this->db->insertID();
 
-        // Notificación push a todos los tutores del alumno
-        $tokens = $this->db->table('dispositivos d')
-            ->select('d.fcm_token')
-            ->join('usuario_alumno ua', 'ua.usuario_id = d.usuario_id')
-            ->where('ua.alumno_id', $alumno['id'])
-            ->where('d.activo', 1)
-            ->get()->getResultArray();
-
-        $fcmTokens = array_column($tokens, 'fcm_token');
-
-        if (!empty($fcmTokens)) {
-            $gravedad = $this->request->getPost('gravedad');
-            $tipo     = $this->request->getPost('tipo');
-
-            $firebase = new FirebaseNotification();
-            $firebase->enviar(
-                $fcmTokens,
-                "Vincúla — Incidencia {$gravedad}",
-                "{$alumno['nombre']} tuvo una incidencia de tipo {$tipo}.",
-                [
-                    'incidencia_id' => (string)$incidenciaId,
-                    'alumno_uuid'   => $alumno['uuid'],
-                    'tipo'          => $tipo,
-                    'gravedad'      => $gravedad,
-                ]
-            );
-        }
-
-        Auditoria::log(
-            'crear',
-            'incidencias',
-            "Registró incidencia {$this->request->getPost('tipo')} para {$alumno['nombre']}",
-            $usuario
+        // Notificación push a todos los tutores del alumno (nunca tumba la petición)
+        $gravedad = (string) $this->request->getPost('gravedad');
+        $tipo     = (string) $this->request->getPost('tipo');
+        $push = Notificador::enviar(
+            Notificador::tokensDeAlumnos([$alumno['id']]),
+            "Vincúla — Incidencia {$gravedad}",
+            "{$alumno['nombre']} tuvo una incidencia de tipo {$tipo}.",
+            [
+                'incidencia_id' => (string) $incidenciaId,
+                'alumno_uuid'   => $alumno['uuid'],
+                'tipo'          => $tipo,
+                'gravedad'      => $gravedad,
+            ]
         );
+
+        try {
+            Auditoria::log(
+                'crear',
+                'incidencias',
+                "Registró incidencia {$tipo} para {$alumno['nombre']}",
+                $usuario
+            );
+        } catch (\Throwable $e) {
+            log_message('error', 'Incidencia auditoría: ' . $e->getMessage());
+        }
 
         return $this->respond([
             'status'        => 'ok',
             'mensaje'       => 'Incidencia registrada correctamente.',
             'incidencia_id' => $incidenciaId,
+            'push'          => $push,
         ]);
     }
 

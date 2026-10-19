@@ -3,6 +3,7 @@ namespace App\Controllers\Api;
 
 use App\Libraries\Auditoria;
 use App\Libraries\FirebaseNotification;
+use App\Libraries\Notificador;
 use App\Models\AlumnoModel;
 use CodeIgniter\RESTful\ResourceController;
 
@@ -70,8 +71,14 @@ class AsistenciaController extends ResourceController
         }
 
         // 2. Verificar pago SOLO si la escuela tiene el cobro activado (escuelas privadas)
-        $cobroActivo = (int) ($this->db->table('escuelas')->select('cobro_activo')
-            ->where('id', $usuario->escuela_id)->get()->getRowArray()['cobro_activo'] ?? 0);
+        //    (si la columna cobro_activo aún no existe en la BD, se toma como "sin cobro")
+        try {
+            $cobroActivo = (int) ($this->db->table('escuelas')->select('cobro_activo')
+                ->where('id', $usuario->escuela_id)->get()->getRowArray()['cobro_activo'] ?? 0);
+        } catch (\Throwable $e) {
+            log_message('error', 'Asistencia: no se pudo leer cobro_activo (¿falta correr el SQL?): ' . $e->getMessage());
+            $cobroActivo = 0;
+        }
 
         if ($cobroActivo && !$alumno['pagado']) {
             return $this->fail('El alumno no tiene acceso activo.', 403);
@@ -105,40 +112,34 @@ class AsistenciaController extends ResourceController
             'created_at' => date('Y-m-d H:i:s'),
         ]);
 
-        // 5. Obtener FCM tokens de todos los tutores del alumno
-        $tokens = $this->db->table('dispositivos d')
-            ->select('d.fcm_token')
-            ->join('usuario_alumno ua', 'ua.usuario_id = d.usuario_id')
-            ->where('ua.alumno_id', $alumno['id'])
-            ->where('d.activo', 1)
-            ->get()->getResultArray();
+        // La asistencia YA quedó guardada: nada de lo que sigue (push, auditoría)
+        // debe regresar error al scanner. Si falla, solo se registra en el log.
 
-        $fcmTokens = array_column($tokens, 'fcm_token');
-
-        // 6. Enviar push a papá y mamá
-        if (!empty($fcmTokens)) {
-            $tipoTexto = $json->tipo === 'entrada' ? 'entró' : 'salió';
-            $firebase  = new FirebaseNotification();
-            $firebase->enviar(
-                $fcmTokens,
-                "Vincúla — {$alumno['nombre']}",
-                "{$alumno['nombre']} {$tipoTexto} a las {$hora}",
-                [
-                    'alumno_uuid' => $alumno['uuid'],
-                    'tipo'        => $json->tipo,
-                    'hora'        => $hora,
-                    'fecha'       => $fecha,
-                ]
-            );
-        }
+        // 5 y 6. Push a papá y mamá
+        $tipoTexto = $json->tipo === 'entrada' ? 'entró' : 'salió';
+        Notificador::enviar(
+            Notificador::tokensDeAlumnos([$alumno['id']]),
+            "Vincúla — {$alumno['nombre']}",
+            "{$alumno['nombre']} {$tipoTexto} a las {$hora}",
+            [
+                'alumno_uuid' => $alumno['uuid'],
+                'tipo'        => $json->tipo,
+                'hora'        => $hora,
+                'fecha'       => $fecha,
+            ]
+        );
 
         // 7. Auditoría
-        Auditoria::log(
-            'crear',
-            'asistencia',
-            "Registró {$json->tipo} de {$alumno['nombre']} a las {$hora}",
-            $usuario
-        );
+        try {
+            Auditoria::log(
+                'crear',
+                'asistencia',
+                "Registró {$json->tipo} de {$alumno['nombre']} a las {$hora}",
+                $usuario
+            );
+        } catch (\Throwable $e) {
+            log_message('error', 'Asistencia: falló la auditoría: ' . $e->getMessage());
+        }
 
         return $this->respond([
             'status'  => 'ok',
